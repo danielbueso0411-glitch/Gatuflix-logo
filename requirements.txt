@@ -1,0 +1,7 @@
+pyTelegramBotAPI
+selenium
+webdriver-manager
+Pillow
+gspread
+oauth2client
+psutil
