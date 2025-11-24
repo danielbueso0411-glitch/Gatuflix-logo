@@ -7,6 +7,7 @@ import threading
 import urllib.parse
 import psutil
 import gspread
+from flask import Flask # <--- IMPORTANTE: Necesario para engañar a Render
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import date, datetime
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
@@ -21,7 +22,6 @@ from selenium.webdriver.support import expected_conditions as EC
 from PIL import Image, ImageDraw, ImageFont
 
 # --- 1. AUTO-CONFIGURACIÓN INICIAL (DESCARGA DE RECURSOS) ---
-# Como Railway no tiene "Celda 1", el bot descarga sus propias imágenes al arrancar.
 print("🔧 Verificando recursos visuales...")
 
 RECURSOS = {
@@ -31,7 +31,7 @@ RECURSOS = {
     "/content/tutorial_paso_2.png": "https://raw.githubusercontent.com/danielbueso0411-glitch/Gatuflix-logo/main/Enviar_email.png"
 }
 
-# Crear carpeta /content si no existe (por seguridad)
+# Crear carpeta /content si no existe
 if not os.path.exists("/content"):
     os.makedirs("/content")
 
@@ -43,10 +43,9 @@ for ruta, url in RECURSOS.items():
         print(f"✅ Recurso listo: {ruta}")
 
 # --- 2. CONFIGURACIÓN DEL SISTEMA ---
-# Silenciar logs innecesarios
 logging.getLogger("urllib3").setLevel(logging.ERROR)
 
-# Credenciales de Google Sheets (Incrustadas para facilitar el deploy)
+# Credenciales de Google Sheets
 CREDENCIALES_JSON = {
   "type": "service_account",
   "project_id": "rich-karma-478818-h4",
@@ -178,7 +177,7 @@ def remover_de_cola(chat_id):
 @bot.message_handler(commands=['status'])
 def admin_status(m):
     if not es_admin(m.chat.id): return
-    bot.reply_to(m, "📊 **Status OK** (Railway)", parse_mode="Markdown")
+    bot.reply_to(m, "📊 **Status OK** (Render)", parse_mode="Markdown")
 
 @bot.message_handler(commands=['reiniciar'])
 def admin_reiniciar(m):
@@ -256,11 +255,8 @@ def obtener_codigo_nube(email_user, chat_id, status_callback=None):
     print(f"--- Procesando: {email_user} ---")
     if status_callback: status_callback("🚀 <b>Iniciando...</b>")
 
-    # CONFIGURACIÓN CHROME PARA RAILWAY (Headless)
+    # CONFIGURACIÓN CHROME (MODERNA PARA RENDER/DOCKER)
     options = webdriver.ChromeOptions()
-    # En Railway, Chrome se instala en la ruta estándar. No necesitamos forzar binary_location
-    # a menos que falle. Lo dejamos comentado, si Railway falla, lo activamos.
-    options.binary_location = "/usr/bin/google-chrome" 
     options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
@@ -594,7 +590,24 @@ def chatbot(m):
     elif any(x in txt for x in ["gracias", "grax"]): bot.reply_to(m, "¡De nada! 😺")
     else: bot.reply_to(m, "🤔 No entendí. Usa /codigo.")
 
-print("--- BOT DE GATUFLIX (RAILWAY READY) ---")
+# --- SERVIDOR WEB FANTASMA (PARA ENGAÑAR A RENDER) ---
+# Esto crea un servidor web falso para que Render detecte el puerto abierto y no apague el bot.
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "<h1>Bot Gatuflix Activo 🤖</h1>"
+
+def run_web_server():
+    # Render asigna un puerto en la variable de entorno PORT, si no hay, usa 8080
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+# Iniciamos el servidor web en un hilo separado para no bloquear al bot
+t = threading.Thread(target=run_web_server)
+t.start()
+
+print("--- BOT DE GATUFLIX (RENDER READY) ---")
 try: bot.infinity_polling(timeout=90, long_polling_timeout=5)
 except KeyboardInterrupt: print("🛑 BOT DETENIDO.")
 except Exception as e: print(f"⚠️ Error: {e}")
