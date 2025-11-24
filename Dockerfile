@@ -1,31 +1,32 @@
-# Usamos una imagen base de Python oficial
+# Usamos una imagen base ligera de Python
 FROM python:3.10-slim
 
-# 1. Instalar dependencias del sistema y Chrome
+# 1. Instalar herramientas básicas necesarias
 RUN apt-get update && apt-get install -y \
     wget \
-    gnupg \
-    unzip \
     curl \
+    unzip \
+    ca-certificates \
+    gnupg \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Instalar Google Chrome (Versión Estable)
-RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable \
+# 2. Instalar Chrome Directamente (Método .deb)
+# Esto evita el error de las llaves (apt-key) descargando el instalador oficial
+RUN apt-get update \
+    && wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && apt-get install -y ./google-chrome-stable_current_amd64.deb \
+    && rm google-chrome-stable_current_amd64.deb \
     && rm -rf /var/lib/apt/lists/*
 
-# 3. Crear la carpeta /content para que tu código no falle
-# (Como tu código busca guardar fotos en /content/, creamos esa carpeta aquí)
+# 3. Crear la carpeta /content para que el bot guarde sus fotos
 RUN mkdir -p /content
 
 # 4. Copiar tus archivos al servidor
 WORKDIR /app
 COPY . /app
 
-# 5. Instalar librerías de Python
+# 5. Instalar las librerías de Python (requirements.txt)
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 6. Comando para iniciar el bot (asegúrate que tu archivo python se llame bot.py)
+# 6. Comando de arranque
 CMD ["python", "bot.py"]
